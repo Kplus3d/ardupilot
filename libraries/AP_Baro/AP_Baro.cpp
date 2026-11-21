@@ -19,10 +19,6 @@
  */
 #include "AP_Baro.h"
 
-#ifdef STM32F405xx
-#include <hal.h>
-#endif
-
 #include <utility>
 #include <stdio.h>
 
@@ -317,96 +313,12 @@ void AP_Baro::calibrate(bool save)
         do {
             update();
             if (AP_HAL::millis() - tstart > 500) {
-                uint8_t pid76 = 0, pid77 = 0, pidSlow = 0, pidForce = 0;
-                bool ok76 = false, ok77 = false, okSlow = false, okForce = false;
-                AP_HAL::OwnPtr<AP_HAL::Device> d76 = hal.i2c_mgr->get_device(0, 0x76);
-                AP_HAL::OwnPtr<AP_HAL::Device> d77 = hal.i2c_mgr->get_device(0, 0x77);
-                if (d76) {
-                    ok76 = d76->read_registers(0x0D, &pid76, 1);
-                    d76->set_speed(AP_HAL::Device::SPEED_LOW);
-                    okSlow = d76->read_registers(0x0D, &pidSlow, 1);
-                }
-                if (d77) {
-                    ok77 = d77->read_registers(0x0D, &pid77, 1);
-                }
-#ifdef STM32F405xx
-                {
-                    (void)ok76; (void)ok77; (void)okSlow; (void)pidForce; (void)okForce;
-                    volatile uint32_t *PUPDR = (volatile uint32_t *)0x4002040C;
-                    // force internal pull-ups on PB10/PB11 before any probe
-                    palSetPadMode(GPIOB, 10, PAL_STM32_MODE_ALTERNATE | PAL_STM32_OTYPE_OPENDRAIN |
-                                  PAL_STM32_OSPEED_MID1 | PAL_STM32_PUPDR_PULLUP | PAL_STM32_ALTERNATE(4));
-                    palSetPadMode(GPIOB, 11, PAL_STM32_MODE_ALTERNATE | PAL_STM32_OTYPE_OPENDRAIN |
-                                  PAL_STM32_OSPEED_MID1 | PAL_STM32_PUPDR_PULLUP | PAL_STM32_ALTERNATE(4));
-                    volatile uint32_t *I2C2_CR1 = (volatile uint32_t *)0x40005800;
-                    volatile uint32_t *SR2 = (volatile uint32_t *)0x40005818;
-                    volatile uint32_t *MODER = (volatile uint32_t *)0x40020400;
-                    volatile uint32_t *OTYPER = (volatile uint32_t *)0x40020404;
-                    volatile uint32_t *IDR = (volatile uint32_t *)0x40020410;
-                    volatile uint32_t *BSRR = (volatile uint32_t *)0x40020418;
-                    if (d76) {
-                        d76->get_semaphore()->take_blocking();
-                    }
-                    const uint32_t l0 = (*IDR >> 10) & 0x3;
-                    // ST stuck-BUSY recovery: disable peripheral, clock SCL to free SDA
-                    *I2C2_CR1 &= ~1U;
-                    *MODER = (*MODER & ~(3U << 20 | 3U << 22)) | (1U << 20); // PB10 out, PB11 in
-                    *OTYPER |= (1U << 10);                                   // PB10 open-drain
-                    *PUPDR = (*PUPDR & ~(3U << 22)) | (1U << 22);            // PB11 pullup
-                    *BSRR = (1U << 10) | (1U << 11);                         // both released
-                    for (uint8_t k = 0; k < 16; k++) {
-                        *BSRR = (1U << (16 + 10));                           // SCL low
-                        for (volatile int d = 0; d < 2000; d++) {}
-                        *BSRR = (1U << 10);                                  // SCL high
-                        for (volatile int d = 0; d < 2000; d++) {}
-                    }
-                    const uint32_t l1 = (*IDR >> 10) & 0x3;
-                    // STOP condition: SDA low, SCL high, SDA high
-                    *MODER = (*MODER & ~(3U << 22)) | (1U << 22);            // PB11 output
-                    *BSRR = (1U << (16 + 11));                               // SDA low
-                    for (volatile int d = 0; d < 2000; d++) {}
-                    *BSRR = (1U << 10);                                      // SCL high
-                    for (volatile int d = 0; d < 2000; d++) {}
-                    *BSRR = (1U << 11);                                      // SDA high
-                    for (volatile int d = 0; d < 2000; d++) {}
-                    // full peripheral reset: pulse I2C2RST in RCC_APB1RSTR
-                    volatile uint32_t *RCC_APB1RSTR = (volatile uint32_t *)0x40023820;
-                    *RCC_APB1RSTR |= (1U << 22);
-                    for (volatile int d = 0; d < 2000; d++) {}
-                    *RCC_APB1RSTR &= ~(1U << 22);
-                    for (volatile int d = 0; d < 2000; d++) {}
-                    palSetPadMode(GPIOB, 10, PAL_STM32_MODE_ALTERNATE | PAL_STM32_OTYPE_OPENDRAIN |
-                                  PAL_STM32_OSPEED_MID1 | PAL_STM32_PUPDR_PULLUP | PAL_STM32_ALTERNATE(4));
-                    palSetPadMode(GPIOB, 11, PAL_STM32_MODE_ALTERNATE | PAL_STM32_OTYPE_OPENDRAIN |
-                                  PAL_STM32_OSPEED_MID1 | PAL_STM32_PUPDR_PULLUP | PAL_STM32_ALTERNATE(4));
-                    *I2C2_CR1 |= 1U;                                         // re-enable
-                    const uint32_t l2 = (*IDR >> 10) & 0x3;
-                    const uint32_t busy = (*SR2 >> 1) & 1;
-                    unsigned nack = 0;
-                    unsigned first = 0;
-                    if (d76) {
-                        d76->set_speed(AP_HAL::Device::SPEED_LOW);
-                        for (unsigned addr = 0x08; addr < 0x78; addr++) {
-                            d76->set_address((uint8_t)addr);
-                            uint8_t b = 0;
-                            if (d76->read_registers(0x0D, &b, 1)) {
-                                if (nack == 0) { first = addr; }
-                                nack++;
-                            }
-                        }
-                        d76->get_semaphore()->give();
-                    }
-                    AP_BoardConfig::config_error("BaroDBG L=%x%x%x B=%x n=%u a=%02x",
-                        (unsigned)l0, (unsigned)l1, (unsigned)l2, (unsigned)busy, nack, first);
-                }
-#else
-                AP_BoardConfig::config_error("BaroDBG A=%d:%02x B=%d:%02x S=%d:%02x",
-                    (int)ok76, pid76, (int)ok77, pid77, (int)okSlow, pidSlow);
-#endif
+                AP_BoardConfig::config_error("Baro: unable to calibrate");
             }
             hal.scheduler->delay(10);
         } while (!healthy());
         hal.scheduler->delay(100);
+    }
     }
 
     // now average over 5 values for the ground pressure settings

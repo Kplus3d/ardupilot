@@ -359,6 +359,57 @@ bool I2CDevice::transfer(const uint8_t *send, uint32_t send_len,
     return true;
 }
 
+#if defined(STM32F4)
+// stuck-BUSY recovery for the F4 I2C peripheral: the bus can wedge when a
+// slave holds SDA low (e.g. interrupted transaction on a board whose I2C
+// lines rely on internal pull-ups). Disable the driver, clock SCL to free
+// the slave, issue STOP, reset the peripheral via RCC, restore the pins.
+static void recover_stuck_i2c_bus(uint8_t busidx, const ioline_t scl_line, const ioline_t sda_line)
+{
+    I2CDriver *i2cd = I2CD[busidx].i2c;
+    i2cStop(i2cd);
+
+    palSetLineMode(scl_line, PAL_MODE_OUTPUT_OPENDRAIN);
+    palSetLineMode(sda_line, PAL_MODE_INPUT_PULLUP);
+    for (uint8_t k = 0; k < 16; k++) {
+        palWriteLine(scl_line, PAL_LOW);
+        chThdSleepMicroseconds(20);
+        palWriteLine(scl_line, PAL_HIGH);
+        chThdSleepMicroseconds(20);
+    }
+    palSetLineMode(sda_line, PAL_MODE_OUTPUT_OPENDRAIN);
+    palWriteLine(sda_line, PAL_LOW);
+    chThdSleepMicroseconds(20);
+    palWriteLine(scl_line, PAL_HIGH);
+    chThdSleepMicroseconds(20);
+    palWriteLine(sda_line, PAL_HIGH);
+    chThdSleepMicroseconds(20);
+
+    uint32_t reset_bit = 0;
+#ifdef STM32_I2C_USE_I2C1
+    if (i2cd == &I2CD1) {
+        reset_bit = 1U << 21;
+    }
+#endif
+#ifdef STM32_I2C_USE_I2C2
+    if (i2cd == &I2CD2) {
+        reset_bit = 1U << 22;
+    }
+#endif
+#ifdef STM32_I2C_USE_I2C3
+    if (i2cd == &I2CD3) {
+        reset_bit = 1U << 23;
+    }
+#endif
+    if (reset_bit != 0) {
+        RCC->APB1RSTR |= reset_bit;
+        chThdSleepMicroseconds(20);
+        RCC->APB1RSTR &= ~reset_bit;
+        chThdSleepMicroseconds(20);
+    }
+}
+#endif // STM32F4
+
 bool I2CDevice::_transfer(const uint8_t *send, uint32_t send_len,
                          uint8_t *recv, uint32_t recv_len)
 {
@@ -380,8 +431,31 @@ bool I2CDevice::_transfer(const uint8_t *send, uint32_t send_len,
         // retries
         bus.dma_handle->lock();
 
-        i2cStart(I2CD[bus.busnum].i2c, &bus.i2ccfg);
-        osalDbgAssert(I2CD[bus.busnum].i2c->state == I2C_READY, "i2cStart state");
+        I2CDriver *i2cd = I2CD[bus.busnum].i2c;
+#if defined(STM32F4)
+        const struct I2CInfo &info = I2CD[bus.busnum];
+        const ioline_t scl_line = GPIO::resolve_alt_config(info.scl_line, PERIPH_TYPE::I2C_SCL, info.instance);
+        const ioline_t sda_line = GPIO::resolve_alt_config(info.sda_line, PERIPH_TYPE::I2C_SDA, info.instance);
+        const bool recovered = ((i2cd->i2c->SR2 & (1U << 1)) != 0) && (scl_line != 0) && (sda_line != 0);
+        if (recovered) {
+            recover_stuck_i2c_bus(bus.busnum, scl_line, sda_line);
+        }
+#endif
+        i2cStart(i2cd, &bus.i2ccfg);
+        osalDbgAssert(i2cd->state == I2C_READY, "i2cStart state");
+
+#if defined(STM32F4)
+        // boards whose I2C lines have no external pull-ups (e.g. SpeedyBee
+        // F405 V3 baro) rely on internal ones; the LLD sets the pads
+        // without PUDR, so re-apply pull-ups after start
+        if ((recovered || !bus.pullups_applied) && scl_line != 0 && sda_line != 0) {
+            palSetLineMode(scl_line, PAL_STM32_MODE_ALTERNATE | PAL_STM32_OTYPE_OPENDRAIN |
+                           PAL_STM32_OSPEED_MID1 | PAL_STM32_PUPDR_PULLUP | PAL_STM32_ALTERNATE(4));
+            palSetLineMode(sda_line, PAL_STM32_MODE_ALTERNATE | PAL_STM32_OTYPE_OPENDRAIN |
+                           PAL_STM32_OSPEED_MID1 | PAL_STM32_PUPDR_PULLUP | PAL_STM32_ALTERNATE(4));
+            bus.pullups_applied = true;
+        }
+#endif
 
         osalSysLock();
         hal.util->persistent_data.i2c_count++;

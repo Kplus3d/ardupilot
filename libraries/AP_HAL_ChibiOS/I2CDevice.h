@@ -39,6 +39,7 @@ public:
     I2CConfig i2ccfg;
     uint8_t busnum;
     uint32_t busclock;
+    bool pullups_applied;
 
     // we need an additional lock in the dma_allocate and
     // dma_deallocate functions to cope with 3-way contention as we
