@@ -331,6 +331,7 @@ void AP_Baro::calibrate(bool save)
                 }
 #ifdef STM32F405xx
                 {
+                    (void)ok76; (void)ok77; (void)okSlow;
                     volatile uint32_t *PUPDR = (volatile uint32_t *)0x4002040C;
                     volatile uint32_t *IDR = (volatile uint32_t *)0x40020410;
                     const uint32_t pupdr = (*PUPDR >> 20) & 0xF;
