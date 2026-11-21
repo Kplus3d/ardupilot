@@ -723,7 +723,41 @@ void AP_Baro::init(void)
     }
 #endif
     if (_num_drivers == 0 || _num_sensors == 0 || drivers[0] == nullptr) {
+#ifdef STM32F405xx
+        {
+            extern uint32_t i2c_recovery_count;
+            AP_HAL::OwnPtr<AP_HAL::Device> d = hal.i2c_mgr->get_device(0, 0x76);
+            unsigned nack = 0, first = 0, q = 0;
+            if (d) {
+                d->set_speed(AP_HAL::Device::SPEED_LOW);
+                for (unsigned a = 0x08; a < 0x78; a++) {
+                    d->set_address((uint8_t)a);
+                    uint8_t b = 0;
+                    if (d->read_registers(0x0D, &b, 1)) {
+                        if (nack == 0) { first = a; }
+                        nack++;
+                    }
+                }
+                // soft-reset both baro addresses, then rescan
+                d->set_address(0x76);
+                d->write_register(0x0C, 0x89);
+                d->set_address(0x77);
+                d->write_register(0x0C, 0x89);
+                hal.scheduler->delay(50);
+                for (unsigned a = 0x08; a < 0x78; a++) {
+                    d->set_address((uint8_t)a);
+                    uint8_t b = 0;
+                    if (d->read_registers(0x0D, &b, 1)) {
+                        q++;
+                    }
+                }
+            }
+            AP_BoardConfig::config_error("BaroDBG R=%u n=%u a=%02x q=%u",
+                (unsigned)i2c_recovery_count, nack, first, q);
+        }
+#else
         AP_BoardConfig::config_error("Baro: unable to initialise driver");
+#endif
     }
 #endif
 #ifdef HAL_BUILD_AP_PERIPH

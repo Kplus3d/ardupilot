@@ -359,6 +359,8 @@ bool I2CDevice::transfer(const uint8_t *send, uint32_t send_len,
     return true;
 }
 
+uint32_t i2c_recovery_count;
+
 #if defined(STM32F4)
 // stuck-BUSY recovery for the F4 I2C peripheral: the bus can wedge when a
 // slave holds SDA low (e.g. interrupted transaction on a board whose I2C
@@ -367,6 +369,7 @@ bool I2CDevice::transfer(const uint8_t *send, uint32_t send_len,
 static void recover_stuck_i2c_bus(uint8_t busidx, const ioline_t scl_line, const ioline_t sda_line)
 {
     I2CDriver *i2cd = I2CD[busidx].i2c;
+    i2c_recovery_count++;
     i2cStop(i2cd);
 
     palSetLineMode(scl_line, PAL_MODE_OUTPUT_OPENDRAIN);
