@@ -123,6 +123,9 @@ bool AP_Baro_SPL06::_init()
 
     for (uint8_t i=0; i<5; i++) {
         if (_dev->read_registers(SPL06_REG_CHIP_ID, &whoami, 1)) {
+            if (hal.console) {
+                hal.console->printf("DBG SPL06: whoami=0x%02x\n", whoami);
+            }
         	switch(whoami) {
 			case SPL06_CHIP_ID:
 				type = Type::SPL06;

@@ -174,8 +174,11 @@ bool AP_Baro_DPS280::init(bool _is_dps310)
     dev->set_chip_select(false);
 
     uint8_t whoami=0;
-    if (!dev->read_registers(DPS280_REG_PID, &whoami, 1) ||
-        whoami != DPS280_WHOAMI) {
+    const bool pid_ok = dev->read_registers(DPS280_REG_PID, &whoami, 1);
+    if (!pid_ok || whoami != DPS280_WHOAMI) {
+        if (hal.console) {
+            hal.console->printf("DBG DPS280: pid_ok=%d whoami=0x%02x\n", (int)pid_ok, whoami);
+        }
         dev->get_semaphore()->give();
         return false;
     }
