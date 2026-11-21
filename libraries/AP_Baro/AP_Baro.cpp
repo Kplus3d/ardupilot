@@ -19,6 +19,10 @@
  */
 #include "AP_Baro.h"
 
+#ifdef STM32F405xx
+#include <hal.h>
+#endif
+
 #include <utility>
 #include <stdio.h>
 
