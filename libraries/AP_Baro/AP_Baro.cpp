@@ -313,7 +313,20 @@ void AP_Baro::calibrate(bool save)
         do {
             update();
             if (AP_HAL::millis() - tstart > 500) {
-                AP_BoardConfig::config_error("Baro: unable to calibrate");
+                uint8_t pid76 = 0, pid77 = 0;
+                bool ok76 = false, ok77 = false;
+                AP_HAL::OwnPtr<AP_HAL::Device> d76 = hal.i2c_mgr->get_device(0, 0x76);
+                AP_HAL::OwnPtr<AP_HAL::Device> d77 = hal.i2c_mgr->get_device(0, 0x77);
+                if (d76) {
+                    ok76 = d76->read_registers(0x0D, &pid76, 1);
+                }
+                if (d77) {
+                    ok77 = d77->read_registers(0x0D, &pid77, 1);
+                }
+                AP_BoardConfig::config_error("Baro: unable to calibrate (ndrv=%u devid=%u pid76=%d:0x%02x pid77=%d:0x%02x)",
+                    (unsigned)_num_drivers,
+                    (unsigned)(_num_drivers > 0 ? sensors[0].bus_id : 0),
+                    (int)ok76, pid76, (int)ok77, pid77);
             }
             hal.scheduler->delay(10);
         } while (!healthy());
