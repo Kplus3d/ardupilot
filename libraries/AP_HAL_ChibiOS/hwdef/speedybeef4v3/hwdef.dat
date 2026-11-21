@@ -47,8 +47,8 @@ PB12 MAX7456_CS CS
 PA15 SDCARD_CS CS
 
 # only one I2C bus in normal config
-PB10 I2C2_SCL I2C2
-PB11 I2C2_SDA I2C2
+PB10 I2C2_SCL I2C2 PULLUP
+PB11 I2C2_SDA I2C2 PULLUP
 
 # analog pins
 PC0 BATT_VOLTAGE_SENS ADC1 SCALE(1)
@@ -127,8 +127,11 @@ IMU BMI270 SPI:bmi270 ROTATION_ROLL_180
 
 # built-in barometer
 BARO SPL06  I2C:0:0x76
+BARO DPS280 I2C:0:0x76
+BARO DPS280 I2C:0:0x77
 define AP_BARO_BACKEND_DEFAULT_ENABLED 0
 define AP_BARO_SPL06_ENABLED 1
+define AP_BARO_DPS280_ENABLED 1
 
 # no built-in compass, but probe the i2c bus for all possible
 # external compass types
