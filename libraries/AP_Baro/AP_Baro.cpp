@@ -313,8 +313,8 @@ void AP_Baro::calibrate(bool save)
         do {
             update();
             if (AP_HAL::millis() - tstart > 500) {
-                uint8_t pid76 = 0, pid77 = 0, pidSlow = 0;
-                bool ok76 = false, ok77 = false, okSlow = false;
+                uint8_t pid76 = 0, pid77 = 0, pidSlow = 0, pidForce = 0;
+                bool ok76 = false, ok77 = false, okSlow = false, okForce = false;
                 AP_HAL::OwnPtr<AP_HAL::Device> d76 = hal.i2c_mgr->get_device(0, 0x76);
                 AP_HAL::OwnPtr<AP_HAL::Device> d77 = hal.i2c_mgr->get_device(0, 0x77);
                 if (d76) {
@@ -325,8 +325,27 @@ void AP_Baro::calibrate(bool save)
                 if (d77) {
                     ok77 = d77->read_registers(0x0D, &pid77, 1);
                 }
+#ifdef STM32F405xx
+                {
+                    volatile uint32_t *PUPDR = (volatile uint32_t *)0x4002040C;
+                    volatile uint32_t *IDR = (volatile uint32_t *)0x40020410;
+                    const uint32_t pupdr = (*PUPDR >> 20) & 0xF;
+                    const uint32_t idr = (*IDR >> 10) & 0x3;
+                    // force internal pull-ups on PB10/PB11 and retry
+                    palSetPadMode(GPIOB, 10, PAL_STM32_MODE_ALTERNATE | PAL_STM32_OTYPE_OPENDRAIN |
+                                  PAL_STM32_SPEED(2) | PAL_STM32_PUPDR_PULLUP | PAL_STM32_ALTERNATE(4));
+                    palSetPadMode(GPIOB, 11, PAL_STM32_MODE_ALTERNATE | PAL_STM32_OTYPE_OPENDRAIN |
+                                  PAL_STM32_SPEED(2) | PAL_STM32_PUPDR_PULLUP | PAL_STM32_ALTERNATE(4));
+                    if (d76) {
+                        okForce = d76->read_registers(0x0D, &pidForce, 1);
+                    }
+                    AP_BoardConfig::config_error("BaroDBG P=%x I=%x F=%d:%02x",
+                        (unsigned)pupdr, (unsigned)idr, (int)okForce, pidForce);
+                }
+#else
                 AP_BoardConfig::config_error("BaroDBG A=%d:%02x B=%d:%02x S=%d:%02x",
                     (int)ok76, pid76, (int)ok77, pid77, (int)okSlow, pidSlow);
+#endif
             }
             hal.scheduler->delay(10);
         } while (!healthy());
