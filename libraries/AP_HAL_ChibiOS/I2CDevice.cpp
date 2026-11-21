@@ -386,17 +386,17 @@ static void recover_stuck_i2c_bus(uint8_t busidx, const ioline_t scl_line, const
     chThdSleepMicroseconds(20);
 
     uint32_t reset_bit = 0;
-#ifdef STM32_I2C_USE_I2C1
+#if STM32_I2C_USE_I2C1
     if (i2cd == &I2CD1) {
         reset_bit = 1U << 21;
     }
 #endif
-#ifdef STM32_I2C_USE_I2C2
+#if STM32_I2C_USE_I2C2
     if (i2cd == &I2CD2) {
         reset_bit = 1U << 22;
     }
 #endif
-#ifdef STM32_I2C_USE_I2C3
+#if STM32_I2C_USE_I2C3
     if (i2cd == &I2CD3) {
         reset_bit = 1U << 23;
     }
