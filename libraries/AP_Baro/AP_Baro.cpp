@@ -313,20 +313,20 @@ void AP_Baro::calibrate(bool save)
         do {
             update();
             if (AP_HAL::millis() - tstart > 500) {
-                uint8_t pid76 = 0, pid77 = 0;
-                bool ok76 = false, ok77 = false;
+                uint8_t pid76 = 0, pid77 = 0, pidSlow = 0;
+                bool ok76 = false, ok77 = false, okSlow = false;
                 AP_HAL::OwnPtr<AP_HAL::Device> d76 = hal.i2c_mgr->get_device(0, 0x76);
                 AP_HAL::OwnPtr<AP_HAL::Device> d77 = hal.i2c_mgr->get_device(0, 0x77);
                 if (d76) {
                     ok76 = d76->read_registers(0x0D, &pid76, 1);
+                    d76->set_speed(AP_HAL::Device::SPEED_LOW);
+                    okSlow = d76->read_registers(0x0D, &pidSlow, 1);
                 }
                 if (d77) {
                     ok77 = d77->read_registers(0x0D, &pid77, 1);
                 }
-                AP_BoardConfig::config_error("BaroDBG n=%u d=%u 76=%d:%02x 77=%d:%02x",
-                    (unsigned)_num_drivers,
-                    (unsigned)(_num_drivers > 0 ? sensors[0].bus_id : 0),
-                    (int)ok76, pid76, (int)ok77, pid77);
+                AP_BoardConfig::config_error("BaroDBG A=%d:%02x B=%d:%02x S=%d:%02x",
+                    (int)ok76, pid76, (int)ok77, pid77, (int)okSlow, pidSlow);
             }
             hal.scheduler->delay(10);
         } while (!healthy());

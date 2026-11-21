@@ -28,6 +28,13 @@ jobs:
           export PATH="/opt/gcc-arm-none-eabi-10/bin:$PATH"
           ./waf copter
 
+      - name: Dump generated pin config
+        shell: bash
+        run: |
+          HW=$(find build -name hwdef.h | head -1)
+          echo "hwdef.h: $HW"
+          grep -nE 'PB10|PB11' "$HW" | head -12
+
       - name: Upload firmware
         uses: actions/upload-artifact@v4
         with:
