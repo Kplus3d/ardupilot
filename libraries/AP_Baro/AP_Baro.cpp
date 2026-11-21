@@ -752,8 +752,21 @@ void AP_Baro::init(void)
                     }
                 }
             }
-            AP_BoardConfig::config_error("BaroDBG R=%u n=%u a=%02x q=%u",
-                (unsigned)i2c_recovery_count, nack, first, q);
+            unsigned mack = 0, mfirst = 0;
+            AP_HAL::OwnPtr<AP_HAL::Device> d1 = hal.i2c_mgr->get_device(1, 0x76);
+            if (d1) {
+                d1->set_speed(AP_HAL::Device::SPEED_LOW);
+                for (unsigned a = 0x08; a < 0x78; a++) {
+                    d1->set_address((uint8_t)a);
+                    uint8_t b = 0;
+                    if (d1->read_registers(0x0D, &b, 1)) {
+                        if (mack == 0) { mfirst = a; }
+                        mack++;
+                    }
+                }
+            }
+            AP_BoardConfig::config_error("BaroDBG R=%u n=%u a=%02x m=%u b=%02x",
+                (unsigned)i2c_recovery_count, nack, first, mack, mfirst);
         }
 #else
         AP_BoardConfig::config_error("Baro: unable to initialise driver");
