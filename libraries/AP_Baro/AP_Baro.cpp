@@ -369,6 +369,12 @@ void AP_Baro::calibrate(bool save)
                     for (volatile int d = 0; d < 2000; d++) {}
                     *BSRR = (1U << 11);                                      // SDA high
                     for (volatile int d = 0; d < 2000; d++) {}
+                    // full peripheral reset: pulse I2C2RST in RCC_APB1RSTR
+                    volatile uint32_t *RCC_APB1RSTR = (volatile uint32_t *)0x40023820;
+                    *RCC_APB1RSTR |= (1U << 22);
+                    for (volatile int d = 0; d < 2000; d++) {}
+                    *RCC_APB1RSTR &= ~(1U << 22);
+                    for (volatile int d = 0; d < 2000; d++) {}
                     palSetPadMode(GPIOB, 10, PAL_STM32_MODE_ALTERNATE | PAL_STM32_OTYPE_OPENDRAIN |
                                   PAL_STM32_OSPEED_MID1 | PAL_STM32_PUPDR_PULLUP | PAL_STM32_ALTERNATE(4));
                     palSetPadMode(GPIOB, 11, PAL_STM32_MODE_ALTERNATE | PAL_STM32_OTYPE_OPENDRAIN |
