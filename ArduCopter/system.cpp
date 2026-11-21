@@ -15,6 +15,7 @@ static void failsafe_check_static()
 
 void Copter::init_ardupilot()
 {
+    GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "INIT CP0 heap=%u", (unsigned)hal.util->available_memory());
     // init winch
 #if AP_WINCH_ENABLED
     g2.winch.init();
@@ -26,6 +27,7 @@ void Copter::init_ardupilot()
 
     // initialise battery monitor
     battery.init();
+    GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "INIT CP1 heap=%u", (unsigned)hal.util->available_memory());
 
 #if AP_RSSI_ENABLED
     // Init RSSI
@@ -33,6 +35,7 @@ void Copter::init_ardupilot()
 #endif
 
     barometer.init();
+    GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "INIT CP2 heap=%u", (unsigned)hal.util->available_memory());
 
     // setup telem slots with serial ports
     gcs().setup_uarts();
@@ -69,6 +72,7 @@ void Copter::init_ardupilot()
 
     // sets up motors and output to escs
     init_rc_out();
+    GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "INIT CP3 heap=%u", (unsigned)hal.util->available_memory());
 
     // check if we should enter esc calibration mode
     esc_calibration_startup_check();
@@ -92,6 +96,7 @@ void Copter::init_ardupilot()
 
     AP::compass().set_log_bit(MASK_LOG_COMPASS);
     AP::compass().init();
+    GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "INIT CP4 heap=%u", (unsigned)hal.util->available_memory());
 
 #if AP_AIRSPEED_ENABLED
     airspeed.set_log_bit(MASK_LOG_IMU);
@@ -217,7 +222,9 @@ void Copter::startup_INS_ground()
     ahrs.set_vehicle_class(AP_AHRS::VehicleClass::COPTER);
 
     // Warm up and calibrate gyro offsets
+    GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "INIT CP5 heap=%u", (unsigned)hal.util->available_memory());
     ins.init(scheduler.get_loop_rate_hz());
+    GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "INIT CP6 heap=%u", (unsigned)hal.util->available_memory());
 
     // reset ahrs including gyro bias
     ahrs.reset();
