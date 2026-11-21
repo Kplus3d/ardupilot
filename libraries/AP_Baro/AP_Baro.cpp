@@ -331,21 +331,33 @@ void AP_Baro::calibrate(bool save)
                 }
 #ifdef STM32F405xx
                 {
-                    (void)ok76; (void)ok77; (void)okSlow;
+                    (void)ok76; (void)ok77; (void)okSlow; (void)pidForce; (void)okForce;
                     volatile uint32_t *PUPDR = (volatile uint32_t *)0x4002040C;
-                    volatile uint32_t *IDR = (volatile uint32_t *)0x40020410;
                     const uint32_t pupdr = (*PUPDR >> 20) & 0xF;
-                    const uint32_t idr = (*IDR >> 10) & 0x3;
-                    // force internal pull-ups on PB10/PB11 and retry
+                    // force internal pull-ups on PB10/PB11 before any probe
                     palSetPadMode(GPIOB, 10, PAL_STM32_MODE_ALTERNATE | PAL_STM32_OTYPE_OPENDRAIN |
                                   PAL_STM32_OSPEED_MID1 | PAL_STM32_PUPDR_PULLUP | PAL_STM32_ALTERNATE(4));
                     palSetPadMode(GPIOB, 11, PAL_STM32_MODE_ALTERNATE | PAL_STM32_OTYPE_OPENDRAIN |
                                   PAL_STM32_OSPEED_MID1 | PAL_STM32_PUPDR_PULLUP | PAL_STM32_ALTERNATE(4));
+                    volatile uint32_t *SR1 = (volatile uint32_t *)0x40005814;
+                    volatile uint32_t *SR2 = (volatile uint32_t *)0x40005818;
+                    const uint32_t sr1 = (*SR1 >> 8) & 0xF;
+                    const uint32_t busy = (*SR2 >> 1) & 1;
+                    unsigned nack = 0;
+                    unsigned first = 0;
                     if (d76) {
-                        okForce = d76->read_registers(0x0D, &pidForce, 1);
+                        d76->set_speed(AP_HAL::Device::SPEED_LOW);
+                        for (unsigned addr = 0x08; addr < 0x78; addr++) {
+                            d76->set_address((uint8_t)addr);
+                            uint8_t b = 0;
+                            if (d76->read_registers(0x0D, &b, 1)) {
+                                if (nack == 0) { first = addr; }
+                                nack++;
+                            }
+                        }
                     }
-                    AP_BoardConfig::config_error("BaroDBG P=%x I=%x F=%d:%02x",
-                        (unsigned)pupdr, (unsigned)idr, (int)okForce, pidForce);
+                    AP_BoardConfig::config_error("BaroDBG P=%x B=%x S=%x n=%u a=%02x",
+                        (unsigned)pupdr, (unsigned)busy, (unsigned)sr1, nack, first);
                 }
 #else
                 AP_BoardConfig::config_error("BaroDBG A=%d:%02x B=%d:%02x S=%d:%02x",
