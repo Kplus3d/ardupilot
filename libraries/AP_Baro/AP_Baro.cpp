@@ -323,7 +323,7 @@ void AP_Baro::calibrate(bool save)
                 if (d77) {
                     ok77 = d77->read_registers(0x0D, &pid77, 1);
                 }
-                AP_BoardConfig::config_error("Baro: unable to calibrate (ndrv=%u devid=%u pid76=%d:0x%02x pid77=%d:0x%02x)",
+                AP_BoardConfig::config_error("BaroDBG n=%u d=%u 76=%d:%02x 77=%d:%02x",
                     (unsigned)_num_drivers,
                     (unsigned)(_num_drivers > 0 ? sensors[0].bus_id : 0),
                     (int)ok76, pid76, (int)ok77, pid77);
