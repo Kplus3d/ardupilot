@@ -333,7 +333,6 @@ void AP_Baro::calibrate(bool save)
                 {
                     (void)ok76; (void)ok77; (void)okSlow; (void)pidForce; (void)okForce;
                     volatile uint32_t *PUPDR = (volatile uint32_t *)0x4002040C;
-                    const uint32_t pupdr = (*PUPDR >> 20) & 0xF;
                     // force internal pull-ups on PB10/PB11 before any probe
                     palSetPadMode(GPIOB, 10, PAL_STM32_MODE_ALTERNATE | PAL_STM32_OTYPE_OPENDRAIN |
                                   PAL_STM32_OSPEED_MID1 | PAL_STM32_PUPDR_PULLUP | PAL_STM32_ALTERNATE(4));
