@@ -339,8 +339,40 @@ void AP_Baro::calibrate(bool save)
                                   PAL_STM32_OSPEED_MID1 | PAL_STM32_PUPDR_PULLUP | PAL_STM32_ALTERNATE(4));
                     palSetPadMode(GPIOB, 11, PAL_STM32_MODE_ALTERNATE | PAL_STM32_OTYPE_OPENDRAIN |
                                   PAL_STM32_OSPEED_MID1 | PAL_STM32_PUPDR_PULLUP | PAL_STM32_ALTERNATE(4));
+                    volatile uint32_t *I2C2_CR1 = (volatile uint32_t *)0x40005800;
                     volatile uint32_t *SR1 = (volatile uint32_t *)0x40005814;
                     volatile uint32_t *SR2 = (volatile uint32_t *)0x40005818;
+                    volatile uint32_t *MODER = (volatile uint32_t *)0x40020400;
+                    volatile uint32_t *OTYPER = (volatile uint32_t *)0x40020404;
+                    volatile uint32_t *BSRR = (volatile uint32_t *)0x40020418;
+                    if (d76) {
+                        d76->get_semaphore()->take_blocking();
+                    }
+                    // ST stuck-BUSY recovery: disable peripheral, clock SCL to free SDA
+                    *I2C2_CR1 &= ~1U;
+                    *MODER = (*MODER & ~(3U << 20 | 3U << 22)) | (1U << 20); // PB10 out, PB11 in
+                    *OTYPER |= (1U << 10);                                   // PB10 open-drain
+                    *PUPDR = (*PUPDR & ~(3U << 22)) | (1U << 22);            // PB11 pullup
+                    *BSRR = (1U << 10) | (1U << 11);                         // both released
+                    for (uint8_t k = 0; k < 10; k++) {
+                        *BSRR = (1U << (16 + 10));                           // SCL low
+                        for (volatile int d = 0; d < 2000; d++) {}
+                        *BSRR = (1U << 10);                                  // SCL high
+                        for (volatile int d = 0; d < 2000; d++) {}
+                    }
+                    // STOP condition: SDA low, SCL high, SDA high
+                    *MODER = (*MODER & ~(3U << 22)) | (1U << 22);            // PB11 output
+                    *BSRR = (1U << (16 + 11));                               // SDA low
+                    for (volatile int d = 0; d < 2000; d++) {}
+                    *BSRR = (1U << 10);                                      // SCL high
+                    for (volatile int d = 0; d < 2000; d++) {}
+                    *BSRR = (1U << 11);                                      // SDA high
+                    for (volatile int d = 0; d < 2000; d++) {}
+                    palSetPadMode(GPIOB, 10, PAL_STM32_MODE_ALTERNATE | PAL_STM32_OTYPE_OPENDRAIN |
+                                  PAL_STM32_OSPEED_MID1 | PAL_STM32_PUPDR_PULLUP | PAL_STM32_ALTERNATE(4));
+                    palSetPadMode(GPIOB, 11, PAL_STM32_MODE_ALTERNATE | PAL_STM32_OTYPE_OPENDRAIN |
+                                  PAL_STM32_OSPEED_MID1 | PAL_STM32_PUPDR_PULLUP | PAL_STM32_ALTERNATE(4));
+                    *I2C2_CR1 |= 1U;                                         // re-enable
                     const uint32_t sr1 = (*SR1 >> 8) & 0xF;
                     const uint32_t busy = (*SR2 >> 1) & 1;
                     unsigned nack = 0;
@@ -355,6 +387,7 @@ void AP_Baro::calibrate(bool save)
                                 nack++;
                             }
                         }
+                        d76->get_semaphore()->give();
                     }
                     AP_BoardConfig::config_error("BaroDBG P=%x B=%x S=%x n=%u a=%02x",
                         (unsigned)pupdr, (unsigned)busy, (unsigned)sr1, nack, first);
