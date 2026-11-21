@@ -337,9 +337,9 @@ void AP_Baro::calibrate(bool save)
                     const uint32_t idr = (*IDR >> 10) & 0x3;
                     // force internal pull-ups on PB10/PB11 and retry
                     palSetPadMode(GPIOB, 10, PAL_STM32_MODE_ALTERNATE | PAL_STM32_OTYPE_OPENDRAIN |
-                                  PAL_STM32_SPEED(2) | PAL_STM32_PUPDR_PULLUP | PAL_STM32_ALTERNATE(4));
+                                  PAL_STM32_OSPEED_MID | PAL_STM32_PUPDR_PULLUP | PAL_STM32_ALTERNATE(4));
                     palSetPadMode(GPIOB, 11, PAL_STM32_MODE_ALTERNATE | PAL_STM32_OTYPE_OPENDRAIN |
-                                  PAL_STM32_SPEED(2) | PAL_STM32_PUPDR_PULLUP | PAL_STM32_ALTERNATE(4));
+                                  PAL_STM32_OSPEED_MID | PAL_STM32_PUPDR_PULLUP | PAL_STM32_ALTERNATE(4));
                     if (d76) {
                         okForce = d76->read_registers(0x0D, &pidForce, 1);
                     }
