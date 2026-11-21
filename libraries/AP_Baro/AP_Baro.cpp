@@ -319,7 +319,6 @@ void AP_Baro::calibrate(bool save)
         } while (!healthy());
         hal.scheduler->delay(100);
     }
-    }
 
     // now average over 5 values for the ground pressure settings
     float sum_pressure[BARO_MAX_INSTANCES] = {0};
